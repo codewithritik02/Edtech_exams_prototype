@@ -523,6 +523,7 @@ class LiveSessionsService {
       registeredStudents: data.registeredStudents || 380,
       replayAvailable: false,
       replayUrl: null,
+      packageTier: data.packageTier || 'All Students of this Exam',
       badge: data.isLiveNow ? 'Live Tonight' : 'Upcoming',
       startOffsetMinutes,
       endOffsetMinutes,

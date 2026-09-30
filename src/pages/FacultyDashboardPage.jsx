@@ -38,6 +38,7 @@ import {
   initialCohortTestResults 
 } from '../data/mockData';
 import { liveSessionsService } from '../services/liveSessionsService';
+import ScheduleLiveSessionDrawer from '../components/ScheduleLiveSessionDrawer';
 
 export default function FacultyDashboardPage() {
   const navigate = useNavigate();
@@ -80,13 +81,7 @@ export default function FacultyDashboardPage() {
     const unsub = liveSessionsService.subscribe((updated) => setLiveSessionsList([...updated]));
     return () => unsub();
   }, []);
-  const [liveCourse, setLiveCourse] = useState('neet-pg');
-  const [liveDay, setLiveDay] = useState('Day 3 (Week 1)');
-  const [liveTopic, setLiveTopic] = useState('STEMI & Acute Coronary Syndrome Grand Rounds');
-  const [liveDate, setLiveDate] = useState('2026-09-06');
-  const [liveTime, setLiveTime] = useState('20:00');
-  const [liveDuration, setLiveDuration] = useState('1.5 hours');
-  const [liveLink, setLiveLink] = useState('https://zoom.us/j/9876543210');
+  const [isLiveDrawerOpen, setIsLiveDrawerOpen] = useState(false);
 
   // Tests form & state (Phase 6 Reactive Store)
   const [testsList, setTestsList] = useState(() => testService.getTests());
@@ -137,22 +132,6 @@ export default function FacultyDashboardPage() {
 
   const handleRemoveFlashcard = (index) => {
     setFlashcardList(flashcardList.filter((_, i) => i !== index));
-  };
-
-  const handleScheduleLiveSession = (e) => {
-    e.preventDefault();
-    liveSessionsService.addSession({
-      title: liveTopic,
-      faculty: facultyProfileData.name,
-      time: `${liveTime} IST`,
-      duration: liveDuration,
-      date: liveDate,
-      course: liveCourse,
-      dayInfo: liveDay,
-      description: `Live interactive session for ${liveCourse.toUpperCase()} • ${liveDay}`,
-      zoomLink: liveLink
-    });
-    triggerUploadSuccess(`Live session "${liveTopic}" scheduled successfully!`);
   };
 
   const handleCreateTest = (e) => {
@@ -228,6 +207,12 @@ export default function FacultyDashboardPage() {
         <main className="flex-grow p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-10">
           
           {/* Notification Toast */}
+          <ScheduleLiveSessionDrawer
+            open={isLiveDrawerOpen}
+            onClose={() => setIsLiveDrawerOpen(false)}
+            onScheduled={(created) => triggerUploadSuccess(`Live session "${created.topic}" scheduled successfully!`)}
+          />
+
           {uploadSuccessMessage && (
             <div className="fixed top-20 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-xs sm:text-sm font-bold animate-in slide-in-from-top-4">
               <CheckCircle2 className="w-5 h-5" />
@@ -665,7 +650,7 @@ export default function FacultyDashboardPage() {
           {activeTab === 'live' && (
             <div className="space-y-8 animate-in fade-in">
               
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">
                     Interactive Grand Rounds
@@ -677,97 +662,13 @@ export default function FacultyDashboardPage() {
                     Host clinical case presentations, diagnostic drills, and live doubts for enrolled cohorts.
                   </p>
                 </div>
-
-                <form onSubmit={handleScheduleLiveSession} className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Target Course Track</label>
-                    <select
-                      value={liveCourse}
-                      onChange={(e) => setLiveCourse(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                    >
-                      <option value="neet-pg">NEET PG & NExT 2026</option>
-                      <option value="usmle">USMLE Step 1 & 2 CK</option>
-                      <option value="plab">PLAB 1 & 2 / UKMLA</option>
-                      <option value="europe">Europe Medical Licensing</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Curriculum Day Placement</label>
-                    <input
-                      type="text"
-                      value={liveDay}
-                      onChange={(e) => setLiveDay(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Session Topic & Focus</label>
-                    <input
-                      type="text"
-                      value={liveTopic}
-                      onChange={(e) => setLiveTopic(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={liveDate}
-                      onChange={(e) => setLiveDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Time (IST)</label>
-                    <input
-                      type="time"
-                      value={liveTime}
-                      onChange={(e) => setLiveTime(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Duration</label>
-                    <select
-                      value={liveDuration}
-                      onChange={(e) => setLiveDuration(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                    >
-                      <option value="45 mins">45 mins</option>
-                      <option value="1 hour">1 hour</option>
-                      <option value="1.5 hours">1.5 hours</option>
-                      <option value="2 hours">2 hours</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Broadcast / Zoom Link</label>
-                    <input
-                      type="text"
-                      value={liveLink}
-                      onChange={(e) => setLiveLink(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:bg-white focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 pt-2">
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/25 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Radio className="w-4 h-4" />
-                      <span>Schedule Live Grand Round</span>
-                    </button>
-                  </div>
-                </form>
+                <button
+                  onClick={() => setIsLiveDrawerOpen(true)}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/25 transition-colors flex items-center justify-center gap-2 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Schedule New Live Session</span>
+                </button>
               </div>
 
               {/* Scheduled Sessions Table */}

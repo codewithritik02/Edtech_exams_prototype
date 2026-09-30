@@ -25,15 +25,11 @@ import {
 import { liveSessionsService } from '../../services/liveSessionsService';
 import { authService, USER_ROLES } from '../../services/authService';
 import { catalogService } from '../../services/catalogService';
-import { contentService } from '../../services/contentService';
-import { peopleService } from '../../services/peopleService';
+import ScheduleLiveSessionDrawer from '../ScheduleLiveSessionDrawer';
 
 export default function LiveSessionsTab() {
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [activeCatalogExams, setActiveCatalogExams] = useState(() => catalogService.getActiveExams());
-  const [facultyList, setFacultyList] = useState(() => 
-    peopleService.getFacultyList ? peopleService.getFacultyList() : []
-  );
 
   const isAdmin = currentUser?.role === USER_ROLES.ADMIN;
   const isFaculty = currentUser?.role === USER_ROLES.FACULTY;
@@ -44,22 +40,7 @@ export default function LiveSessionsTab() {
     ? activeCatalogExams 
     : activeCatalogExams.filter(e => facultyAllowedExams.includes(e.id));
 
-  // ---------------------------------------------------------------------------
-  // Form State
-  // ---------------------------------------------------------------------------
-  const [formExam, setFormExam] = useState(() => availableExams[0]?.id || 'neet-pg');
-  const [curriculum, setCurriculum] = useState(() => contentService.getCurriculumStructure(formExam));
-  const [formWeek, setFormWeek] = useState(() => curriculum.weeks[0]?.id || '1');
-  const currentWeekObj = curriculum.weeks.find(w => w.id === String(formWeek)) || curriculum.weeks[0];
-  const [formDay, setFormDay] = useState(() => currentWeekObj?.days[0]?.id || '3');
-
-  const [formTopic, setFormTopic] = useState('');
-  const [formDate, setFormDate] = useState('2026-09-08');
-  const [formTime, setFormTime] = useState('20:00');
-  const [formDuration, setFormDuration] = useState('1.5 hours');
-  const [formMeetingLink, setFormMeetingLink] = useState('https://meet.google.com/medprep-grand-rounds-live');
-  const [formFaculty, setFormFaculty] = useState(() => currentUser?.name || 'Dr. Siddharth V.');
-  const [formTier, setFormTier] = useState('Standard & Premium Only');
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Filter & List State
@@ -83,53 +64,13 @@ export default function LiveSessionsTab() {
     return unsubscribe;
   }, [examFilter, statusFilter, isFaculty]);
 
-  // When formExam changes, update curriculum and days
-  useEffect(() => {
-    const cur = contentService.getCurriculumStructure(formExam);
-    setCurriculum(cur);
-    const firstWeek = cur.weeks[0];
-    setFormWeek(firstWeek?.id || '1');
-    setFormDay(firstWeek?.days[0]?.id || '1');
-  }, [formExam]);
-
-  // When formWeek changes, update days
-  useEffect(() => {
-    const weekObj = curriculum.weeks.find(w => w.id === String(formWeek)) || curriculum.weeks[0];
-    if (weekObj?.days?.length > 0) {
-      setFormDay(weekObj.days[0].id);
-    }
-  }, [formWeek, curriculum]);
-
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4500);
   };
 
-  // Schedule Session Handler
-  const handleScheduleSubmit = (e) => {
-    e.preventDefault();
-    if (!formTopic.trim()) {
-      alert('Please enter a clinical session topic.');
-      return;
-    }
-
-    const selectedExamObj = availableExams.find(e => e.id === formExam);
-    const created = liveSessionsService.addSession({
-      examId: formExam,
-      examName: selectedExamObj?.name || 'NEET PG & NExT 2026',
-      weekId: formWeek,
-      dayId: formDay,
-      topic: formTopic.trim(),
-      date: formDate,
-      time: formTime,
-      duration: formDuration,
-      faculty: formFaculty,
-      meetingLink: formMeetingLink.trim(),
-      packageTier: formTier
-    });
-
-    setFormTopic('');
-    showToast(`✅ Live Session "${created.topic}" scheduled! Synced with Student Dashboard & Day ${formDay} Live Tab.`);
+  const handleScheduled = (created, dayId) => {
+    showToast(`✅ Live Session "${created.topic}" scheduled! Synced with Student Dashboard & Day ${dayId} Live Tab.`);
   };
 
   // Upload Recording Handler
@@ -150,8 +91,6 @@ export default function LiveSessionsTab() {
       showToast(`Session "${session.topic}" cancelled and removed from student calendars.`);
     }
   };
-
-  const selectedExamName = availableExams.find(e => e.id === formExam)?.name || formExam;
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -194,198 +133,21 @@ export default function LiveSessionsTab() {
           </div>
         </div>
 
-        {/* ------------------------------------------------------------------- */}
-        {/* PART A.1: SCHEDULE LIVE SESSION FORM                                 */}
-        {/* ------------------------------------------------------------------- */}
-        <div className="p-6 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50/80 border border-slate-200">
+          <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Plus className="w-4 h-4 text-red-600" />
               <span>Schedule New Live Session</span>
             </h3>
-            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-              Synced with Day View (Phase 4) & Dashboard (Phase 3)
-            </span>
+            <p className="text-[11px] text-slate-500 mt-0.5">Pick exam, week & day, faculty, package tier and broadcast link.</p>
           </div>
-
-          <form onSubmit={handleScheduleSubmit} className="space-y-4 text-xs">
-            
-            {/* Hierarchy Selection Row (Exam -> Week -> Day) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 flex items-center justify-between">
-                  <span>1. Select Exam Track *</span>
-                  {isFaculty && <span className="text-[10px] text-emerald-700 font-bold">Scoped</span>}
-                </label>
-                <select
-                  value={formExam}
-                  onChange={(e) => setFormExam(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                >
-                  {availableExams.map((exam) => (
-                    <option key={exam.id} value={exam.id}>
-                      {exam.flag} {exam.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">2. Target Week *</label>
-                <select
-                  value={formWeek}
-                  onChange={(e) => setFormWeek(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                >
-                  {curriculum.weeks.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">3. Target Day in Curriculum *</label>
-                <select
-                  value={formDay}
-                  onChange={(e) => setFormDay(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-red-200 font-black text-red-950 bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                >
-                  {currentWeekObj?.days.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Topic & Link Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 space-y-1">
-                <label className="font-bold text-slate-700">Session Topic & Clinical Theme *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. STEMI Pathways, Dynamic Auscultation & Door-to-Balloon Drills"
-                  value={formTopic}
-                  onChange={(e) => setFormTopic(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-semibold text-slate-900 focus:outline-none focus:border-red-500 bg-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Meeting / Broadcast Link *</label>
-                <div className="relative">
-                  <LinkIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="url"
-                    required
-                    value={formMeetingLink}
-                    onChange={(e) => setFormMeetingLink(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 font-mono text-slate-800 focus:outline-none focus:border-red-500 bg-white"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Timing & Faculty Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Session Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Start Time (IST) *</label>
-                <input
-                  type="time"
-                  required
-                  value={formTime}
-                  onChange={(e) => setFormTime(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Duration *</label>
-                <select
-                  value={formDuration}
-                  onChange={(e) => setFormDuration(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none"
-                >
-                  <option value="30 min">30 Minutes</option>
-                  <option value="1 hour">1 Hour</option>
-                  <option value="1.5 hours">1.5 Hours</option>
-                  <option value="2 hours">2 Hours</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">
-                  {isAdmin ? 'Assigned Faculty Specialist *' : 'Host Faculty (Auto-Filled)'}
-                </label>
-                {isAdmin ? (
-                  <select
-                    value={formFaculty}
-                    onChange={(e) => setFormFaculty(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none"
-                  >
-                    {facultyList.map((f) => (
-                      <option key={f.id} value={`${f.name} (${f.specialty})`}>
-                        {f.name} — {f.specialty}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    disabled
-                    value={formFaculty}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 bg-slate-100 cursor-not-allowed"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Package Tier & Helper Note */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Eligible Package Tier (Rule 9) *</label>
-                <select
-                  value={formTier}
-                  onChange={(e) => setFormTier(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none"
-                >
-                  <option value="All Students of this Exam">All Enrolled Students (Basic, Standard & Premium)</option>
-                  <option value="Standard & Premium Only">Standard & Premium Tiers Only</option>
-                  <option value="All Premium Students">Premium VIP Students Only</option>
-                </select>
-              </div>
-
-              <div className="sm:col-span-2 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-[11px] text-amber-900">
-                <span className="font-bold">System Behavior Note:</span> This session will appear on the Student Dashboard of all students enrolled in <strong>{selectedExamName}</strong> with an eligible package, and automatically unlocks under <strong>Day {formDay}'s Live Session Tab</strong>.
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer text-xs"
-              >
-                <Radio className="w-4 h-4" />
-                <span>Schedule Live Grand Round</span>
-              </button>
-            </div>
-
-          </form>
+          <button
+            onClick={() => setIsScheduleOpen(true)}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer text-xs shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Schedule Session</span>
+          </button>
         </div>
 
         {/* ------------------------------------------------------------------- */}
@@ -552,6 +314,12 @@ export default function LiveSessionsTab() {
         </div>
 
       </div>
+
+      <ScheduleLiveSessionDrawer
+        open={isScheduleOpen}
+        onClose={() => setIsScheduleOpen(false)}
+        onScheduled={handleScheduled}
+      />
 
       {/* DRAWER: Upload / Attach Session Recording */}
       {recordingModalSession && (
